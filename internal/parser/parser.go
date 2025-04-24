@@ -1,6 +1,8 @@
 package parser
 
-func Parse(str string) (*BinaryTreeNode, error) {
+import "cli_tooler/internal/utility"
+
+func Parse(str string) (*utility.BinaryTreeNode[Symbol], error) {
 
 	tokens, err := lexical(str)
 	if err != nil {

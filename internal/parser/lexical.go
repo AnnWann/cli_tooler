@@ -2,10 +2,15 @@ package parser
 
 import (
 	"cli_tooler/internal/dictionary"
+	errorhandler "cli_tooler/internal/error_handler"
 	"errors"
-	"fmt"
 	"regexp"
 )
+
+type LexicalErrorOutput struct {
+	tokens           []token
+	problematicToken token
+}
 
 func lexical(str string) ([]token, error) {
 	lexemes, err := getLexemes(str)
@@ -17,29 +22,31 @@ func lexical(str string) ([]token, error) {
 	for i, lexeme := range lexemes {
 		switch {
 		case matchEntireString(assignmentREG, lexeme):
-			tokens = append(tokens, token{value: lexeme, kind: "assignment"})
+			tokens = append(tokens, token{Value: lexeme, Kind: "assignment", Column: i})
 		case matchEntireString(logicalREG, lexeme):
-			tokens = append(tokens, token{value: lexeme, kind: "logical"})
+			tokens = append(tokens, token{Value: lexeme, Kind: "logical", Column: i})
 		case matchEntireString(mathREG, lexeme):
-			tokens = append(tokens, token{value: lexeme, kind: "math"})
+			tokens = append(tokens, token{Value: lexeme, Kind: "math", Column: i})
 		case matchEntireString(parenthesis_OREG, lexeme):
-			tokens = append(tokens, token{value: lexeme, kind: "parenthesis_open"})
+			tokens = append(tokens, token{Value: lexeme, Kind: "parenthesis_open", Column: i})
 		case matchEntireString(parenthesis_CREG, lexeme):
-			tokens = append(tokens, token{value: lexeme, kind: "parenthesis_close"})
+			tokens = append(tokens, token{Value: lexeme, Kind: "parenthesis_close", Column: i})
 		case matchEntireString(callREG, lexeme):
-			tokens = append(tokens, token{value: lexeme, kind: "call"})
+			tokens = append(tokens, token{Value: lexeme, Kind: "call", Column: i})
 		case matchEntireString(stringREG, lexeme):
 			lexemeWithoutQuotes := lexeme[1 : len(lexeme)-1]
-			tokens = append(tokens, token{value: lexemeWithoutQuotes, kind: "string"})
+			tokens = append(tokens, token{Value: lexemeWithoutQuotes, Kind: "string", Column: i})
 		case matchEntireString(nameREG, lexeme):
-			tokens = append(tokens, token{value: lexeme, kind: "name"})
+			tokens = append(tokens, token{Value: lexeme, Kind: "name", Column: i})
 		case matchEntireString(floatREG, lexeme):
-			tokens = append(tokens, token{value: lexeme, kind: "float"})
+			tokens = append(tokens, token{Value: lexeme, Kind: "float", Column: i})
 		case matchEntireString(integerREG, lexeme):
-			tokens = append(tokens, token{value: lexeme, kind: "integer"})
+			tokens = append(tokens, token{Value: lexeme, Kind: "integer", Column: i})
 		default:
-			errorMessage := dictionary.GetString("lexicalError")
-			return nil, fmt.Errorf(errorMessage, lexeme[i-1], lexeme[i])
+			return nil, errorhandler.HandleError("lexicalError", LexicalErrorOutput{
+				tokens:           tokens,
+				problematicToken: token{Value: lexeme, Kind: "unknown", Column: i},
+			})
 		}
 	}
 
@@ -235,5 +242,3 @@ func matchEntireString(regExp string, str string) bool {
 	}
 	return string(match[0]) == str
 }
-
-

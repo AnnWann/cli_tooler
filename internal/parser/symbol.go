@@ -3,266 +3,439 @@ package parser
 import (
 	"cli_tooler/internal/cli_tooler"
 	"cli_tooler/internal/dictionary"
-	"cli_tooler/internal/variable_table"
 	"math"
 	"regexp"
+	"strconv"
+	"strings"
 )
 
+const maxPrecedence = math.MaxInt
+const nonValueMaxPrecedence = maxPrecedence - 1
+
 type Symbol struct {
-	sign         string
+	token        token
 	precedence   int
-	apply        interface{}
+	apply        func(string, string) string
 	nextIsValid  func(string) bool
 	errorMessage string
+	isUnary      bool
 }
 
-func createSymbol(sign string) Symbol {
-	switch sign {
+func createSymbol(t token) Symbol {
+	switch t.Value {
 	case "+":
-		return plus()
+		return plus(t)
 	case "-":
-		return minus()
+		return minus(t)
 	case "*":
-		return multiply()
+		return multiply(t)
 	case "/":
-		return divide()
+		return divide(t)
 	case "!":
-		return negation()
+		return negation(t)
 	case "$":
-		return call()
+		return call(t)
 	case ":=":
-		return assignment()
+		return assignment(t)
 	case ">":
-		return greater()
+		return greater(t)
 	case "<":
-		return less()
+		return less(t)
 	case ">=":
-		return greaterOrEqual()
+		return greaterOrEqual(t)
 	case "<=":
-		return lessOrEqual()
+		return lessOrEqual(t)
 	case "=":
-		return equal()
+		return equal(t)
 	case "!=":
-		return notEqual()
+		return notEqual(t)
 	case "&&":
-		return and()
+		return and(t)
 	case "||":
-		return or()
+		return or(t)
 	default:
-		for word, data := range cli_tooler.ReservedWords {
-			if sign == word {
+		for word, data := range cli_tooler.CLI.GetReservedWords() {
+			if t.Value == word {
 				return Symbol{
-					sign:         sign,
+					token:        t,
 					precedence:   data.Precedence,
 					apply:        data.Fn,
 					nextIsValid:  data.NextIsValid,
 					errorMessage: data.ErrorMessage,
+					isUnary:      data.IsUnary,
 				}
 			}
 		}
+		var precedence int
+		if t.Value == "(" || t.Value == ")" {
+			precedence = -1
+		} else {
+			precedence = maxPrecedence
+		}
+
 		return Symbol{
-			sign:        sign,
-			precedence:  0,
-			apply:       nil,
+			token:       t,
+			precedence:  precedence,
 			nextIsValid: func(string) bool { return true },
 		}
 	}
 }
 
-func (s Symbol) lessOrEqualInPrecedence(sp Symbol) bool {
+func (s Symbol) LessOrEqualInPrecedence(sp Symbol) bool {
 	return s.precedence <= sp.precedence
 }
 
 func nextIsValidMathOperators(symbol string) bool {
-	return regexp.MustCompile(`[$]|[a-zA-Z_][a-zA-Z0-9_]*|[0-9]+\.[0-9]+|[0-9]+`).MatchString(symbol)
+	return regexp.MustCompile(`[$()]|[a-zA-Z_][a-zA-Z0-9_]*|[0-9]+\.[0-9]+|[0-9]+`).MatchString(symbol)
 }
 
 func nextIsValidLogicalOperators(symbol string) bool {
-	return regexp.MustCompile(`[$]|[a-zA-Z_][a-zA-Z0-9_]*|"[^"]*"|[0-9]+\.[0-9]+|[0-9]+`).MatchString(symbol)
+	return regexp.MustCompile(`[$()!]|[a-zA-Z_][a-zA-Z0-9_]*|"[^"]*"|[0-9]+\.[0-9]+|[0-9]+`).MatchString(symbol)
 }
 
-func plus() Symbol {
+func plus(t token) Symbol {
 	return Symbol{
-		"+",
-		math.MaxInt - 1,
-		struct {
-			_int   func(int, int) int
-			_float func(float64, float64) float64
-		}{
-			_int:   func(a, b int) int { return a + b },
-			_float: func(a, b float64) float64 { return a + b },
+		t,
+		nonValueMaxPrecedence - 1,
+		func(a, b string) string {
+			integer, err := strconv.Atoi(a)
+			if err == nil {
+				integer2, err := strconv.Atoi(b)
+				if err == nil {
+					return strconv.Itoa(integer + integer2)
+				}
+			}
+			float, err := strconv.ParseFloat(a, 64)
+			if err == nil {
+				float2, err := strconv.ParseFloat(b, 64)
+				if err == nil {
+					return strconv.FormatFloat(float+float2, 'f', -1, 64)
+				}
+			}
+			return a + b
 		},
 		nextIsValidMathOperators,
 		dictionary.GetString("operatorError"),
+		false,
 	}
 }
 
-func minus() Symbol {
+func minus(t token) Symbol {
 	return Symbol{
-		"-",
-		math.MaxInt - 1,
-		struct {
-			_int   func(int, int) int
-			_float func(float64, float64) float64
-		}{
-			_int:   func(a, b int) int { return a - b },
-			_float: func(a, b float64) float64 { return a - b },
+		t,
+		nonValueMaxPrecedence - 1,
+		func(a, b string) string {
+			integer, err := strconv.Atoi(a)
+			if err == nil {
+				integer2, err := strconv.Atoi(b)
+				if err == nil {
+					return strconv.Itoa(integer - integer2)
+				}
+			}
+			float, err := strconv.ParseFloat(a, 64)
+			if err == nil {
+				float2, err := strconv.ParseFloat(b, 64)
+				if err == nil {
+					return strconv.FormatFloat(float-float2, 'f', -1, 64)
+				}
+			}
+			return strings.Trim(a, b)
 		},
 		nextIsValidMathOperators,
 		dictionary.GetString("operatorError"),
+		false,
 	}
 }
 
-func multiply() Symbol {
+func multiply(t token) Symbol {
 	return Symbol{
-		"*",
-		math.MaxInt,
-		struct {
-			_int   func(int, int) int
-			_float func(float64, float64) float64
-		}{
-			_int:   func(a, b int) int { return a * b },
-			_float: func(a, b float64) float64 { return a * b },
+		t,
+		nonValueMaxPrecedence,
+		func(a, b string) string {
+			integer, err := strconv.Atoi(a)
+			if err == nil {
+				integer2, err := strconv.Atoi(b)
+				if err == nil {
+					return strconv.Itoa(integer * integer2)
+				}
+			}
+			float, err := strconv.ParseFloat(a, 64)
+			if err == nil {
+				float2, err := strconv.ParseFloat(b, 64)
+				if err == nil {
+					return strconv.FormatFloat(float*float2, 'f', -1, 64)
+				}
+			}
+			return ""
 		},
 		nextIsValidMathOperators,
 		dictionary.GetString("operatorError"),
+		false,
 	}
 }
 
-func divide() Symbol {
+func divide(t token) Symbol {
 	return Symbol{
-		"/",
-		math.MaxInt,
-		struct {
-			_int   func(int, int) int
-			_float func(float64, float64) float64
-		}{
-			_int:   func(a, b int) int { return a / b },
-			_float: func(a, b float64) float64 { return a / b },
+		t,
+		nonValueMaxPrecedence,
+		func(a, b string) string {
+			integer, err := strconv.Atoi(a)
+			if err == nil {
+				integer2, err := strconv.Atoi(b)
+				if err == nil {
+					return strconv.Itoa(integer / integer2)
+				}
+			}
+			float, err := strconv.ParseFloat(a, 64)
+			if err == nil {
+				float2, err := strconv.ParseFloat(b, 64)
+				if err == nil {
+					return strconv.FormatFloat(float/float2, 'f', -1, 64)
+				}
+			}
+			return ""
 		},
 		nextIsValidMathOperators,
 		dictionary.GetString("operatorError"),
+		false,
 	}
 }
 
-func equal() Symbol {
+func equal(t token) Symbol {
 	return Symbol{
-		"=",
-		math.MaxInt - 2,
-		func(a, b int) bool {
-			return a == b
+		t,
+		nonValueMaxPrecedence - 2,
+		func(a, b string) string {
+			if a == b {
+				return "true"
+			}
+			return "false"
 		},
 		nextIsValidLogicalOperators,
 		dictionary.GetString("operatorError"),
+		false,
 	}
 }
 
-func greater() Symbol {
+func greater(t token) Symbol {
 	return Symbol{
-		">",
-		math.MaxInt - 2,
-		func(a, b int) bool {
-			return a > b
+		t,
+		nonValueMaxPrecedence - 2,
+		func(a, b string) string {
+			integer, err := strconv.Atoi(a)
+			if err == nil {
+				integer2, err := strconv.Atoi(b)
+				if err == nil {
+					if integer > integer2 {
+						return "true"
+					}
+					return "false"
+				}
+			}
+			float, err := strconv.ParseFloat(a, 64)
+			if err == nil {
+				float2, err := strconv.ParseFloat(b, 64)
+				if err == nil {
+					if float > float2 {
+						return "true"
+					}
+					return "false"
+				}
+			}
+			return "false"
 		},
 		nextIsValidLogicalOperators,
 		dictionary.GetString("operatorError"),
+		false,
 	}
 }
 
-func less() Symbol {
+func less(t token) Symbol {
 	return Symbol{
-		"<",
-		math.MaxInt - 2,
-		func(a, b int) bool {
-			return a < b
-		},
-		nextIsValidLogicalOperators,
-		dictionary.GetString("operatorError")}
-}
-
-func greaterOrEqual() Symbol {
-	return Symbol{">=",
-		math.MaxInt - 2,
-		func(a, b int) bool {
-			return a >= b
-		},
-		nextIsValidLogicalOperators,
-		dictionary.GetString("operatorError")}
-}
-
-func lessOrEqual() Symbol {
-	return Symbol{
-		"<=",
-		math.MaxInt - 2,
-		func(a, b int) bool {
-			return a <= b
-		},
-		nextIsValidLogicalOperators,
-		dictionary.GetString("operatorError")}
-}
-
-func notEqual() Symbol {
-	return Symbol{
-		"!=",
-		math.MaxInt - 2,
-		func(a, b int) bool {
-			return a != b
+		t,
+		nonValueMaxPrecedence - 2,
+		func(a, b string) string {
+			integer, err := strconv.Atoi(a)
+			if err == nil {
+				integer2, err := strconv.Atoi(b)
+				if err == nil {
+					if integer < integer2 {
+						return "true"
+					}
+					return "false"
+				}
+			}
+			float, err := strconv.ParseFloat(a, 64)
+			if err == nil {
+				float2, err := strconv.ParseFloat(b, 64)
+				if err == nil {
+					if float < float2 {
+						return "true"
+					}
+					return "false"
+				}
+			}
+			return "false"
 		},
 		nextIsValidLogicalOperators,
 		dictionary.GetString("operatorError"),
+		false,
 	}
 }
 
-func negation() Symbol {
+func greaterOrEqual(t token) Symbol {
 	return Symbol{
-		"!",
-		math.MaxInt - 3,
-		func(a bool) bool { return !a },
-		nextIsValidLogicalOperators,
-		dictionary.GetString("operatorError")}
-}
-
-func and() Symbol {
-	return Symbol{
-		"&&",
-		math.MaxInt - 4,
-		func(a, b bool) bool {
-			return a && b
+		t,
+		nonValueMaxPrecedence - 2,
+		func(a, b string) string {
+			integer, err := strconv.Atoi(a)
+			if err == nil {
+				integer2, err := strconv.Atoi(b)
+				if err == nil {
+					if integer >= integer2 {
+						return "true"
+					}
+					return "false"
+				}
+			}
+			float, err := strconv.ParseFloat(a, 64)
+			if err == nil {
+				float2, err := strconv.ParseFloat(b, 64)
+				if err == nil {
+					if float >= float2 {
+						return "true"
+					}
+					return "false"
+				}
+			}
+			return "false"
 		},
 		nextIsValidLogicalOperators,
-		dictionary.GetString("operatorError")}
+		dictionary.GetString("operatorError"),
+		false,
+	}
 }
 
-func or() Symbol {
+func lessOrEqual(t token) Symbol {
 	return Symbol{
-		"||",
-		math.MaxInt - 5,
-		func(a, b bool) bool {
-			return a || b
+		t,
+		nonValueMaxPrecedence - 2,
+		func(a, b string) string {
+			integer, err := strconv.Atoi(a)
+			if err == nil {
+				integer2, err := strconv.Atoi(b)
+				if err == nil {
+					if integer < integer2 {
+						return "true"
+					}
+					return "false"
+				}
+			}
+			float, err := strconv.ParseFloat(a, 64)
+			if err == nil {
+				float2, err := strconv.ParseFloat(b, 64)
+				if err == nil {
+					if float < float2 {
+						return "true"
+					}
+					return "false"
+				}
+			}
+			return "false"
 		},
 		nextIsValidLogicalOperators,
-		dictionary.GetString("operatorError")}
+		dictionary.GetString("operatorError"),
+		false,
+	}
 }
 
-func assignment() Symbol {
+func notEqual(t token) Symbol {
 	return Symbol{
-		":=",
-		math.MaxInt - 6,
-		func(a, b string) {
-			variable_table.SetVariable(a, b)
+		t,
+		nonValueMaxPrecedence - 2,
+		func(a, b string) string {
+			if a != b {
+				return "true"
+			}
+			return "false"
 		},
 		nextIsValidLogicalOperators,
-		dictionary.GetString("operatorError")}
+		dictionary.GetString("operatorError"),
+		false,
+	}
 }
 
-func call() Symbol {
+func negation(t token) Symbol {
 	return Symbol{
-		"$", math.MaxInt - 6,
-		func(a string) string {
-			return variable_table.GetVariable(a)
+		t,
+		nonValueMaxPrecedence - 3,
+		func(a, b string) string {
+			if a == "true" {
+				return "false"
+			}
+			return "true"
+		},
+		nextIsValidLogicalOperators,
+		dictionary.GetString("operatorError"),
+		true,
+	}
+}
+
+func and(t token) Symbol {
+	return Symbol{
+		t,
+		nonValueMaxPrecedence - 4,
+		func(a, b string) string {
+			aBool := a == "true"
+			bBool := b == "true"
+			return strconv.FormatBool(aBool && bBool)
+		},
+		nextIsValidLogicalOperators,
+		dictionary.GetString("operatorError"),
+		false,
+	}
+}
+
+func or(t token) Symbol {
+	return Symbol{
+		t,
+		nonValueMaxPrecedence - 5,
+		func(a, b string) string {
+			aBool := a == "true"
+			bBool := b == "true"
+			return strconv.FormatBool(aBool && bBool)
+		},
+		nextIsValidLogicalOperators,
+		dictionary.GetString("operatorError"),
+		false,
+	}
+}
+
+func assignment(t token) Symbol {
+	return Symbol{
+		t,
+		nonValueMaxPrecedence - 6,
+		func(a, b string) string {
+			cli_tooler.CLI.SetVariable(a, b)
+			return b
+		},
+		nextIsValidLogicalOperators,
+		dictionary.GetString("operatorError"),
+		false,
+	}
+}
+
+func call(t token) Symbol {
+	return Symbol{
+		t,
+		nonValueMaxPrecedence - 6,
+		func(a, b string) string {
+			return cli_tooler.CLI.GetVariable(a)
 		},
 		func(token string) bool {
 			return regexp.MustCompile(`[a-zA-Z_][a-zA-Z0-9_]*`).MatchString(token)
 		},
-		dictionary.GetString("operatorError")}
+		dictionary.GetString("operatorError"),
+		true,
+	}
 }

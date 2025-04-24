@@ -5,6 +5,7 @@ import (
 )
 
 func Test_Lexical(t *testing.T) {
+	t.Parallel()
 
 	t.Run("Test \"a sentence of only words\"", func(t *testing.T) {
 		// Test "a sentence of only words"
@@ -13,14 +14,14 @@ func Test_Lexical(t *testing.T) {
 		// The output is a list of tokens.
 
 		expected := []token{
-			{value: "a", kind: "name"},
-			{value: "sentence", kind: "name"},
-			{value: "of", kind: "name"},
-			{value: "only", kind: "name"},
-			{value: "words", kind: "name"},
+			{Value: "a", Kind: "name"},
+			{Value: "sentence", Kind: "name"},
+			{Value: "of", Kind: "name"},
+			{Value: "only", Kind: "name"},
+			{Value: "words", Kind: "name"},
 		}
 
-		succedingTest(t, "a sentence of only words", expected)
+		succedingLexicalTest(t, "a sentence of only words", expected)
 	})
 
 	t.Run("Test \"90 40 30 21 59 3280 33230 64000 39291\"", func(t *testing.T) {
@@ -30,18 +31,18 @@ func Test_Lexical(t *testing.T) {
 		// The output is a list of tokens.
 
 		expected := []token{
-			{value: "90", kind: "integer"},
-			{value: "40", kind: "integer"},
-			{value: "30", kind: "integer"},
-			{value: "21", kind: "integer"},
-			{value: "59", kind: "integer"},
-			{value: "3280", kind: "integer"},
-			{value: "33230", kind: "integer"},
-			{value: "64000", kind: "integer"},
-			{value: "39291", kind: "integer"},
+			{Value: "90", Kind: "integer"},
+			{Value: "40", Kind: "integer"},
+			{Value: "30", Kind: "integer"},
+			{Value: "21", Kind: "integer"},
+			{Value: "59", Kind: "integer"},
+			{Value: "3280", Kind: "integer"},
+			{Value: "33230", Kind: "integer"},
+			{Value: "64000", Kind: "integer"},
+			{Value: "39291", Kind: "integer"},
 		}
 
-		succedingTest(t, "90 40 30 21 59 3280 33230 64000 39291", expected)
+		succedingLexicalTest(t, "90 40 30 21 59 3280 33230 64000 39291", expected)
 	})
 
 	t.Run("Test \"30.5 1.5 0.5 0.1 0.0001 0.0", func(t *testing.T) {
@@ -51,15 +52,15 @@ func Test_Lexical(t *testing.T) {
 		// The output is a list of tokens.
 
 		expected := []token{
-			{value: "30.5", kind: "float"},
-			{value: "1.5", kind: "float"},
-			{value: "0.5", kind: "float"},
-			{value: "0.1", kind: "float"},
-			{value: "0.0001", kind: "float"},
-			{value: "0.0", kind: "float"},
+			{Value: "30.5", Kind: "float"},
+			{Value: "1.5", Kind: "float"},
+			{Value: "0.5", Kind: "float"},
+			{Value: "0.1", Kind: "float"},
+			{Value: "0.0001", Kind: "float"},
+			{Value: "0.0", Kind: "float"},
 		}
 
-		succedingTest(t, "30.5 1.5 0.5 0.1 0.0001 0.0", expected)
+		succedingLexicalTest(t, "30.5 1.5 0.5 0.1 0.0001 0.0", expected)
 	})
 
 	t.Run("Test \"( ) ( ( ) )\"", func(t *testing.T) {
@@ -69,15 +70,15 @@ func Test_Lexical(t *testing.T) {
 		// The output is a list of tokens.7
 
 		expected := []token{
-			{value: "(", kind: "parenthesis_open"},
-			{value: ")", kind: "parenthesis_close"},
-			{value: "(", kind: "parenthesis_open"},
-			{value: "(", kind: "parenthesis_open"},
-			{value: ")", kind: "parenthesis_close"},
-			{value: ")", kind: "parenthesis_close"},
+			{Value: "(", Kind: "parenthesis_open"},
+			{Value: ")", Kind: "parenthesis_close"},
+			{Value: "(", Kind: "parenthesis_open"},
+			{Value: "(", Kind: "parenthesis_open"},
+			{Value: ")", Kind: "parenthesis_close"},
+			{Value: ")", Kind: "parenthesis_close"},
 		}
 
-		succedingTest(t, "( ) ( ( ) )", expected)
+		succedingLexicalTest(t, "( ) ( ( ) )", expected)
 	})
 
 	t.Run("Test \"==:=<=>=< > + -/ * ^\"", func(t *testing.T) {
@@ -87,20 +88,20 @@ func Test_Lexical(t *testing.T) {
 		// The output is a list of tokens.
 
 		expected := []token{
-			{value: "==", kind: "logical"},
-			{value: ":=", kind: "assignment"},
-			{value: "<=", kind: "logical"},
-			{value: ">=", kind: "logical"},
-			{value: "<", kind: "logical"},
-			{value: ">", kind: "logical"},
-			{value: "+", kind: "math"},
-			{value: "-", kind: "math"},
-			{value: "/", kind: "math"},
-			{value: "*", kind: "math"},
-			{value: "^", kind: "math"},
+			{Value: "==", Kind: "logical"},
+			{Value: ":=", Kind: "assignment"},
+			{Value: "<=", Kind: "logical"},
+			{Value: ">=", Kind: "logical"},
+			{Value: "<", Kind: "logical"},
+			{Value: ">", Kind: "logical"},
+			{Value: "+", Kind: "math"},
+			{Value: "-", Kind: "math"},
+			{Value: "/", Kind: "math"},
+			{Value: "*", Kind: "math"},
+			{Value: "^", Kind: "math"},
 		}
 
-		succedingTest(t, "==:=<=>=< > + -/ * ^", expected)
+		succedingLexicalTest(t, "==:=<=>=< > + -/ * ^", expected)
 	})
 
 	t.Run("Test \"a := 30.5 + 1.5 * 0.5\"", func(t *testing.T) {
@@ -110,16 +111,16 @@ func Test_Lexical(t *testing.T) {
 		// The output is a list of tokens.
 
 		expected := []token{
-			{value: "a", kind: "name"},
-			{value: ":=", kind: "assignment"},
-			{value: "30.5", kind: "float"},
-			{value: "+", kind: "math"},
-			{value: "1.5", kind: "float"},
-			{value: "*", kind: "math"},
-			{value: "0.5", kind: "float"},
+			{Value: "a", Kind: "name"},
+			{Value: ":=", Kind: "assignment"},
+			{Value: "30.5", Kind: "float"},
+			{Value: "+", Kind: "math"},
+			{Value: "1.5", Kind: "float"},
+			{Value: "*", Kind: "math"},
+			{Value: "0.5", Kind: "float"},
 		}
 
-		succedingTest(t, "a := 30.5 + 1.5 * 0.5", expected)
+		succedingLexicalTest(t, "a := 30.5 + 1.5 * 0.5", expected)
 	})
 
 	t.Run("Test \"reservedWord reservedWord2 reservedWord3\"", func(t *testing.T) {
@@ -129,12 +130,12 @@ func Test_Lexical(t *testing.T) {
 		// The output is a list of tokens.
 
 		expected := []token{
-			{value: "reservedWord", kind: "name"},
-			{value: "reservedWord2", kind: "name"},
-			{value: "reservedWord3", kind: "name"},
+			{Value: "reservedWord", Kind: "name"},
+			{Value: "reservedWord2", Kind: "name"},
+			{Value: "reservedWord3", Kind: "name"},
 		}
 
-		succedingTest(t, "reservedWord reservedWord2 reservedWord3", expected)
+		succedingLexicalTest(t, "reservedWord reservedWord2 reservedWord3", expected)
 	})
 
 	t.Run("Test \"\"value\" \"value2\" \"value3\"\"", func(t *testing.T) {
@@ -144,12 +145,12 @@ func Test_Lexical(t *testing.T) {
 		// The output is a list of tokens
 
 		expected := []token{
-			{value: "value", kind: "string"},
-			{value: "value2", kind: "string"},
-			{value: "value3", kind: "string"},
+			{Value: "value", Kind: "string"},
+			{Value: "value2", Kind: "string"},
+			{Value: "value3", Kind: "string"},
 		}
 
-		succedingTest(t, "\"value\" \"value2\" \"value3\"", expected)
+		succedingLexicalTest(t, "\"value\" \"value2\" \"value3\"", expected)
 	})
 
 	t.Run("Test \"banana:=$batata+salada\"", func(t *testing.T) {
@@ -159,21 +160,27 @@ func Test_Lexical(t *testing.T) {
 		// The output is a list of tokens.
 
 		expected := []token{
-			{value: "banana", kind: "name"},
-			{value: ":=", kind: "assignment"},
-			{value: "$", kind: "call"},
-			{value: "batata", kind: "name"},
-			{value: "+", kind: "math"},
-			{value: "salada", kind: "name"},
+			{Value: "banana", Kind: "name"},
+			{Value: ":=", Kind: "assignment"},
+			{Value: "$", Kind: "call"},
+			{Value: "batata", Kind: "name"},
+			{Value: "+", Kind: "math"},
+			{Value: "salada", Kind: "name"},
 		}
 
-		succedingTest(t, "banana:=$batata+salada", expected)
+		succedingLexicalTest(t, "banana:=$batata+salada", expected)
 	})
 
+	t.Run("Test multi-line input", func(t *testing.T) {
+	})
+
+	t.Run("Error cases", func(t *testing.T) {
+
+	})
 }
 
-func succedingTest(t *testing.T, input string, expectedOutput []token) {
-	//t.Helper()
+func succedingLexicalTest(t *testing.T, input string, expectedOutput []token) {
+	t.Helper()
 
 	// Test "input"
 	// Test case for the lexical function.

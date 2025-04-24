@@ -1,29 +1,31 @@
-package parser
+package utility
 
-type stack struct {
-	elements []BinaryTreeNode
+type Stack[T any] struct {
+	elements []T
 }
 
-func (s *stack) push(element BinaryTreeNode) {
+func (s *Stack[T]) Push(element T) {
 	s.elements = append(s.elements, element)
 }
 
-func (s *stack) pop() BinaryTreeNode {
+func (s *Stack[T]) Pop() T {
 	if len(s.elements) == 0 {
-		return BinaryTreeNode{}
+		var zeroValue T
+		return zeroValue
 	}
 	element := s.elements[len(s.elements)-1]
 	s.elements = s.elements[:len(s.elements)-1]
 	return element
 }
 
-func (s *stack) peek() BinaryTreeNode {
+func (s *Stack[T]) Peek() T {
 	if len(s.elements) == 0 {
-		return BinaryTreeNode{}
+		var zeroValue T
+		return zeroValue
 	}
 	return s.elements[len(s.elements)-1]
 }
 
-func (s *stack) isEmpty() bool {
+func (s *Stack[T]) IsEmpty() bool {
 	return len(s.elements) == 0
 }

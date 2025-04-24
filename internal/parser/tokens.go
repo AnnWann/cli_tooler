@@ -1,6 +1,8 @@
 package parser
 
 type token struct {
-	value string
-	kind  string
+	Value  string
+	Kind   string
+	Row    int
+	Column int
 }

@@ -1,81 +1,150 @@
 package parser
 
 import (
-	"cli_tooler/internal/dictionary"
-	"fmt"
+	errorhandler "cli_tooler/internal/error_handler"
+	"cli_tooler/internal/utility"
 )
 
-func syntax(tokens []token) (*BinaryTreeNode, error) {
-	head, symbolStack, outputStack := &BinaryTreeNode{}, stack{}, stack{}
+type SyntaxErrorOutput struct {
+	Head              *utility.BinaryTreeNode[Symbol]
+	CommandStack      *utility.Stack[utility.BinaryTreeNode[Symbol]]
+	OutputStack       *utility.Stack[utility.BinaryTreeNode[Symbol]]
+	Tokens            []token
+	ProblematicSymbol Symbol
+}
+
+func syntax(tokens []token) (*utility.BinaryTreeNode[Symbol], error) {
+	head, commandStack, outputStack := &utility.BinaryTreeNode[Symbol]{}, utility.Stack[utility.BinaryTreeNode[Symbol]]{}, utility.Stack[utility.BinaryTreeNode[Symbol]]{}
 
 	lastSymbol := Symbol{nextIsValid: func(string) bool { return true }}
 	needsClosingParenthesis := 0
-	for i, token := range tokens {
-		symbol := createSymbol(token.value)
-		if !lastSymbol.nextIsValid(symbol.sign) {
-			errorMessage := dictionary.GetString("syntaxError") + "\n" + symbol.errorMessage
-			return nil, fmt.Errorf(errorMessage, tokens[i-1].value, tokens[i].value, symbol.sign)
+	for _, token := range tokens {
+		symbol := createSymbol(token)
+		if !lastSymbol.nextIsValid(symbol.token.Value) {
+			return nil, errorhandler.HandleError("syntaxError", SyntaxErrorOutput{
+				Head:              head,
+				CommandStack:      &commandStack,
+				OutputStack:       &outputStack,
+				Tokens:            tokens,
+				ProblematicSymbol: symbol,
+			})
 		}
 
-		if token.kind == "parenthesis_open" {
-			symbolStack.push(BinaryTreeNode{Value: createSymbol(token.value)})
+		if token.Kind == "parenthesis_open" {
+			commandStack.Push(utility.BinaryTreeNode[Symbol]{Value: createSymbol(token)})
 			needsClosingParenthesis++
-		} else if token.kind == "parenthesis_close" {
-			for !symbolStack.isEmpty() && symbolStack.peek().Value.(Symbol).sign != "(" {
-				subtree := createSubTree(symbolStack.pop().Value.(Symbol), nil, &symbolStack, &outputStack)
-				outputStack.push(*subtree)
+		} else if token.Kind == "parenthesis_close" {
+			if !commandStack.IsEmpty() {
+				subtree := createSubTree(commandStack.Pop().Value, nil, &commandStack, &outputStack)
+				outputStack.Push(*subtree)
 			}
-			symbolStack.pop()
 			needsClosingParenthesis--
 
-		} else if token.kind != "value" {
-			symbol := createSymbol(token.value)
-			if !symbolStack.isEmpty() && symbolStack.peek().Value.lessOrEqualInPrecedence(symbol) {
-				subtree := createSubTree(symbolStack.pop().Value.(Symbol), nil, &symbolStack, &outputStack)
-				outputStack.push(*subtree)
+		} else if token.Kind != "string" && token.Kind != "integer" && token.Kind != "float" {
+			if !commandStack.IsEmpty() && symbol.LessOrEqualInPrecedence(commandStack.Peek().Value) {
+				subtree := createSubTree(commandStack.Pop().Value, nil, &commandStack, &outputStack)
+				outputStack.Push(*subtree)
 			}
-			symbolStack.push(BinaryTreeNode{Value: symbol})
+			commandStack.Push(utility.BinaryTreeNode[Symbol]{Value: symbol})
 		} else {
-			outputStack.push(BinaryTreeNode{Value: createSymbol(token.value)})
+			outputStack.Push(utility.BinaryTreeNode[Symbol]{Value: createSymbol(token)})
 		}
+		lastSymbol = symbol
 	}
 
 	if needsClosingParenthesis > 0 {
-		return nil, fmt.Errorf(dictionary.GetString("syntaxError") + "\n" + dictionary.GetString("missingClosingParenthesis"))
+		return nil, errorhandler.HandleError("parenthesis", SyntaxErrorOutput{
+			Head:         head,
+			CommandStack: &commandStack,
+			OutputStack:  &outputStack,
+			Tokens:       tokens,
+		})
 	}
 
-	for !symbolStack.isEmpty() {
-		updateTree(head, &symbolStack, &outputStack)
+	for !commandStack.IsEmpty() {
+		head = updateTree(head, &commandStack, &outputStack)
+	}
+
+	if head.Value.token.Value == "" {
+		temp := outputStack.Pop()
+		head = &temp
 	}
 
 	return head, nil
 }
 
-func createSubTree(symbol Symbol, tree *BinaryTreeNode, symbolStack *stack, outputStack *stack) *BinaryTreeNode {
-	if tree == nil {
-		tree = &BinaryTreeNode{}
-		right, left := outputStack.pop(), outputStack.pop()
-		tree.Right, tree.Left = &right, &left
+func createSubTree(
+	symbol Symbol,
+	tree *utility.BinaryTreeNode[Symbol],
+	commandStack *utility.Stack[utility.BinaryTreeNode[Symbol]],
+	outputStack *utility.Stack[utility.BinaryTreeNode[Symbol]]) *utility.BinaryTreeNode[Symbol] {
+	if symbol.token.Value == "(" || symbol.token.Value == ")" {
+		return tree
+	}
+	if tree == nil || tree.Value.token.Value == "" {
+		tree = &utility.BinaryTreeNode[Symbol]{Value: symbol}
+		if symbol.isUnary {
+			right := outputStack.Pop()
+			rightPtr := &right
+			if right.Value.token.Value == "" {
+				rightPtr = nil
+			}
+			tree.Right = rightPtr
+		} else {
+			right, left := outputStack.Pop(), outputStack.Pop()
+			rightPtr, leftPtr := &right, &left
+			if left.Value.token.Value == "" {
+				leftPtr = nil
+			}
+			if right.Value.token.Value == "" {
+				rightPtr = nil
+			}
+			tree.Right, tree.Left = rightPtr, leftPtr
+		}
 	} else {
-		subtree, left := tree, outputStack.pop()
-		tree = &BinaryTreeNode{Value: symbol, Left: &left, Right: subtree}
+		if symbol.isUnary {
+			tree = &utility.BinaryTreeNode[Symbol]{Value: symbol, Right: tree}
+		} else {
+			subtree, left := tree, outputStack.Pop()
+			leftPtr := &left
+			if left.Value.token.Value == "" {
+				leftPtr = nil
+			}
+			tree = &utility.BinaryTreeNode[Symbol]{Value: symbol, Left: leftPtr, Right: subtree}
+		}
 	}
 
-	if !symbolStack.isEmpty() && symbolStack.peek().Value.lessOrEqualInPrecedence(symbol) {
-		return createSubTree(symbolStack.pop().Value.(Symbol), tree, symbolStack, outputStack)
+	if !commandStack.IsEmpty() && commandStack.Peek().Value.LessOrEqualInPrecedence(symbol) {
+		return createSubTree(commandStack.Pop().Value, tree, commandStack, outputStack)
 	}
 
 	return tree
 }
 
-func updateTree(head *BinaryTreeNode, symbolStack *stack, outputStack *stack) {
-	symbol, output := symbolStack.pop(), outputStack.pop()
+func updateTree(head *utility.BinaryTreeNode[Symbol], commandStack *utility.Stack[utility.BinaryTreeNode[Symbol]], outputStack *utility.Stack[utility.BinaryTreeNode[Symbol]]) *utility.BinaryTreeNode[Symbol] {
+	symbol := commandStack.Pop()
 
-	if head == nil {
-		left := outputStack.pop()
-		head = &BinaryTreeNode{Value: symbol.Value.(Symbol), Left: &left, Right: &output}
+	if head == nil || head.Value.token.Value == "" {
+		output := outputStack.Pop()
+		if symbol.Value.isUnary {
+			head = &utility.BinaryTreeNode[Symbol]{Value: symbol.Value, Right: &output}
+		} else {
+			left := outputStack.Pop()
+			ptr := &left
+			if left.Value.token.Value == "" {
+				ptr = nil
+			}
+			head = &utility.BinaryTreeNode[Symbol]{Value: symbol.Value, Left: ptr, Right: &output}
+		}
 	} else {
-		subtree := head
-		head = &BinaryTreeNode{Value: symbol.Value.(Symbol), Left: &output, Right: subtree}
+		if symbol.Value.isUnary {
+			head = &utility.BinaryTreeNode[Symbol]{Value: symbol.Value, Right: head}
+		} else {
+			output := outputStack.Pop()
+			subtree := head
+			head = &utility.BinaryTreeNode[Symbol]{Value: symbol.Value, Left: &output, Right: subtree}
+		}
 	}
+
+	return head
 }

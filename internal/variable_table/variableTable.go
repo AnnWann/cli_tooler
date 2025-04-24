@@ -6,34 +6,39 @@ import (
 	"strings"
 )
 
-var __VARIABLE_TABLE__ = map[string]string{}
+type VariableTable map[string]string
 
-func SetVariable(a string, b string) {
+func (v VariableTable) SetVariable(a string, b string) {
 
-	if __VARIABLE_TABLE__ == nil {
-		__VARIABLE_TABLE__ = make(map[string]string)
+	if v == nil {
+		v = make(map[string]string)
 	}
 
-	__VARIABLE_TABLE__[a] = b
+	v[a] = b
 }
 
-func GetVariable(name string) string {
-	return __VARIABLE_TABLE__[name]
+func (v VariableTable) GetVariable(name string) string {
+	return v[name]
 }
 
-func DeleteVariable(name string) {
-	delete(__VARIABLE_TABLE__, name)
+func (v VariableTable) DeleteVariable(name string) {
+	delete(v, name)
 }
 
-func ClearVariableTable() {
-	__VARIABLE_TABLE__ = nil
-	InitVariableTable()
+func (v *VariableTable) ClearVariableTable() {
+	*v = make(map[string]string)
 }
 
-func InitVariableTable() error {
-	__VARIABLE_TABLE__ = make(map[string]string)
+func (v VariableTable) InitVariableTable(file string) error {
+	if v == nil {
+		v = make(map[string]string)
+	}
 
-	variables, err := os.ReadFile("variables")
+	if file == "" {
+		return nil
+	}
+
+	variables, err := os.ReadFile(file)
 	if err != nil {
 		return errors.New("could not read variables file")
 	}
@@ -44,7 +49,7 @@ func InitVariableTable() error {
 			continue
 		}
 		variableParts := strings.Split(variable, "=")
-		__VARIABLE_TABLE__[variableParts[0]] = variableParts[1]
+		v[variableParts[0]] = variableParts[1]
 	}
 	return nil
 }
